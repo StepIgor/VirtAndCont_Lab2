@@ -1,0 +1,52 @@
+version: '3'
+
+services:
+  postgres:
+    image: postgres:latest
+    environment:
+      POSTGRES_DB: stepigordb
+      POSTGRES_USER: stepigor
+      POSTGRES_PASSWORD: 12345678
+    volumes:
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./house_prices.csv:/house_prices.csv
+    ports:
+      - "5432:5432"
+  
+  spark-master:
+    image: bitnami/spark:latest
+    depends_on:
+      - postgres
+    command: bin/spark-class org.apache.spark.deploy.master.Master
+    volumes:
+      - ./myCode.py:/myCode.py
+      - ./postgresql-jdbc.jar:/opt/bitnami/spark/jars/postgresql-jdbc.jar
+    ports:
+      - "7077:7077"
+      - "9090:8080"
+
+  spark-worker1:
+    image: bitnami/spark:latest
+    command: bin/spark-class org.apache.spark.deploy.worker.Worker spark://spark-master:7077
+    volumes:
+      - ./postgresql-jdbc.jar:/opt/bitnami/spark/jars/postgresql-jdbc.jar
+    depends_on:
+      - spark-master
+    environment:
+      SPARK_MODE: worker
+      SPARK_WORKER_CORES: 1
+      SPARK_WORKER_MEMORY: 1g
+      SPARK_MASTER_URL: spark://spark-master:7077
+
+  spark-worker2:
+    image: bitnami/spark:latest
+    command: bin/spark-class org.apache.spark.deploy.worker.Worker spark://spark-master:7077
+    depends_on:
+      - spark-master
+    volumes:
+      - ./postgresql-jdbc.jar:/opt/bitnami/spark/jars/postgresql-jdbc.jar
+    environment:
+      SPARK_MODE: worker
+      SPARK_WORKER_CORES: 1
+      SPARK_WORKER_MEMORY: 1g
+      SPARK_MASTER_URL: spark://spark-master:7077
